@@ -19,7 +19,7 @@ steps:
   inputs:
     provider: 'azurerm'
     command: 'init'
-    backendServiceArm: 'terraform-sp-connection'
+    backendServiceArm: 'terraform-sp'
     workingDirectory: '$(workingDirectory)'
 
 - task: TerraformTaskV4@4
