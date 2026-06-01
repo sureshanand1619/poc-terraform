@@ -11,6 +11,7 @@ steps:
 - checkout: self
 
 - task: TerraformInstaller@1
+  displayName: Install Terraform
   inputs:
     terraformVersion: 'latest'
 
@@ -20,7 +21,6 @@ steps:
     provider: 'azurerm'
     command: 'init'
     backendServiceArm: 'tfstatefile'
-
     backendAzureRmResourceGroupName: 'POC'
     backendAzureRmStorageAccountName: 'tfstatepoc2026'
     backendAzureRmContainerName: 'tfstate'
@@ -39,8 +39,62 @@ steps:
   inputs:
     provider: 'azurerm'
     command: 'plan'
+    commandOptions: '-out=tfplan'
     environmentServiceNameAzureRM: 'tfstatefile'
     workingDirectory: '$(workingDirectory)'
+  env:
+    TF_VAR_db_password: $(var.db_password)
 
+- task: TerraformTaskV4@4
+  displayName: Terraform Apply
+  inputs:
+    provider: 'azurerm'
+    command: 'apply'
+    commandOptions: 'tfplan'
+    environmentServiceNameAzureRM: 'tfstatefile'
+    workingDirectory: '$(workingDirectory)'
+  env:
+    TF_VAR_db_password: $(var.db_password)
+
+- bash: |
+    cd $(workingDirectory)
+
+    PUBLIC_IP=$(terraform output -raw vm_public_ip)
+
+    echo "VM Public IP: $PUBLIC_IP"
+
+    echo "##vso[task.setvariable variable=VM_PUBLIC_IP]$PUBLIC_IP"
+  displayName: Get VM Public IP
+
+- bash: |
+    echo "Waiting for Nginx to become available..."
+
+    for i in {1..30}; do
+
+      STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$(VM_PUBLIC_IP) || true)
+
+      echo "Attempt $i - HTTP Status: $STATUS"
+
+      if [ "$STATUS" = "200" ]; then
+        echo "Application is reachable."
+        exit 0
+      fi
+
+      sleep 20
+
+    done
+
+    echo "Application failed health check."
+    exit 1
+  displayName: Validate Application
+
+- task: TerraformTaskV4@4
+  displayName: Terraform Destroy
+  condition: always()
+  inputs:
+    provider: 'azurerm'
+    command: 'destroy'
+    environmentServiceNameAzureRM: 'tfstatefile'
+    workingDirectory: '$(workingDirectory)'
   env:
     TF_VAR_db_password: $(var.db_password)
