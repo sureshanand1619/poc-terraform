@@ -41,3 +41,6 @@ steps:
     command: 'plan'
     environmentServiceNameAzureRM: 'tfstatefile'
     workingDirectory: '$(workingDirectory)'
+
+  env:
+    TF_VAR_db_password: $(var.db_password)
