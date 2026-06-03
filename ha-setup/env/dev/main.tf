@@ -35,6 +35,8 @@ module "network" {
   vnet_cidr           = var.vnet_cidr
   public_subnet_cidr  = var.public_subnet_cidr
   private_subnet_cidr = var.private_subnet_cidr
+
+  nsg_id = module.nsg.nsg_id   # wire in the NSG output
 }
 
 module "nsg" {
@@ -133,3 +135,4 @@ output "log_analytics_workspace" {
 output "autoscale_setting" {
   value = module.autoscale.autoscale_setting_name
 }
+

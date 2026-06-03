@@ -21,3 +21,8 @@ variable "public_subnet_cidr" {
 variable "private_subnet_cidr" {
   type = string
 }
+
+variable "nsg_id" {
+  type        = string
+  description = "ID of the NSG to associate with subnets"
+}

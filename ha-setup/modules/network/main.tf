@@ -18,6 +18,11 @@ resource "azurerm_subnet" "public" {
   ]
 }
 
+resource "azurerm_subnet_network_security_group_association" "public" {
+  subnet_id                 = azurerm_subnet.public.id
+  network_security_group_id = var.nsg_id
+}
+
 resource "azurerm_subnet" "private" {
   name                 = "${var.environment}-private-subnet"
   resource_group_name  = var.resource_group_name
@@ -26,4 +31,9 @@ resource "azurerm_subnet" "private" {
   address_prefixes = [
     var.private_subnet_cidr
   ]
+}
+
+resource "azurerm_subnet_network_security_group_association" "private" {
+  subnet_id                 = azurerm_subnet.private.id
+  network_security_group_id = var.nsg_id
 }

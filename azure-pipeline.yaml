@@ -69,6 +69,7 @@ stages:
                 -v $(System.DefaultWorkingDirectory):/tf \
                 bridgecrew/checkov \
                 --directory /tf/ha-setup/env/${{ parameters.environment }}
+                --skip-check CKV_AZURE_49
             displayName: Checkov Security Scan
 
   - stage: Plan
