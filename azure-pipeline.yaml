@@ -2,6 +2,7 @@ trigger:
   branches:
     include:
       - main
+#trigger: none
 
 pool:
   vmImage: ubuntu-latest
@@ -22,6 +23,9 @@ variables:
 
 stages:
 
+  # ============================================================
+  # STAGE 1: VALIDATE
+  # ============================================================
   - stage: Validate
     displayName: Terraform Validation
     jobs:
@@ -59,19 +63,22 @@ stages:
               workingDirectory: $(workingDirectory)
 
           - bash: |
-              curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
-              tflint
+              TFLINT_VERSION="0.54.0"
+              curl -sLo tflint.zip https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_amd64.zip
+              unzip -o tflint.zip -d /usr/local/bin/
+              chmod +x /usr/local/bin/tflint
+              tflint --init
+              tflint --minimum-failure-severity=error
             workingDirectory: $(workingDirectory)
             displayName: Run TFLint
 
           - bash: |
-              docker run --rm \
-                -v $(System.DefaultWorkingDirectory):/tf \
-                bridgecrew/checkov \
-                --directory /tf/ha-setup/env/${{ parameters.environment }} \
-                --skip-check CKV_AZURE_49,CKV_AZURE_178,CKV_AZURE_97,CKV_AZURE_149,CKV_AZURE_1,CKV_AZURE_50,CKV_AZURE_119,CKV_AZURE_160,CKV_AZURE_10
+              docker run --rm -v $(System.DefaultWorkingDirectory):/tf bridgecrew/checkov --directory /tf/ha-setup/env/${{ parameters.environment }} --skip-check CKV_AZURE_49,CKV_AZURE_178,CKV_AZURE_97,CKV_AZURE_149,CKV_AZURE_1,CKV_AZURE_50,CKV_AZURE_119,CKV_AZURE_160,CKV_AZURE_10
             displayName: Checkov Security Scan
 
+  # ============================================================
+  # STAGE 2: PLAN
+  # ============================================================
   - stage: Plan
     displayName: Terraform Plan
     dependsOn: Validate
@@ -106,6 +113,13 @@ stages:
               environmentServiceNameAzureRM: tfstatefile
               workingDirectory: $(workingDirectory)
 
+          - publish: $(workingDirectory)/tfplan
+            artifact: tfplan-${{ parameters.environment }}
+            displayName: Upload Terraform Plan Artifact
+
+  # ============================================================
+  # STAGE 3: APPROVAL
+  # ============================================================
   - stage: Approval
     displayName: Manual Approval
     dependsOn: Plan
@@ -129,42 +143,49 @@ stages:
                   - Monitoring
                   - Alerts
                   - Key Vault references
-              onTimeout: reject
+            onTimeout: reject
 
+  # ============================================================
+  # STAGE 4: APPLY
+  # ============================================================
   - stage: Apply
     displayName: Terraform Apply
     dependsOn: Approval
     jobs:
-      - deployment: ApplyTerraform
-        environment: '${{ parameters.environment }}'
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - checkout: self
+      - job: ApplyTerraform
+        steps:
+          - checkout: self
 
-                - task: TerraformInstaller@1
-                  displayName: Install Terraform
-                  inputs:
-                    terraformVersion: $(terraformVersion)
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: $(terraformVersion)
 
-                - task: TerraformTaskV4@4
-                  displayName: Terraform Init
-                  inputs:
-                    provider: azurerm
-                    command: init
-                    backendServiceArm: tfstatefile
-                    backendAzureRmResourceGroupName: POC
-                    backendAzureRmStorageAccountName: tfstatepoc2026
-                    backendAzureRmContainerName: tfstate
-                    backendAzureRmKey: '${{ parameters.environment }}/terraform.tfstate'
-                    workingDirectory: $(workingDirectory)
+          - task: TerraformTaskV4@4
+            displayName: Terraform Init
+            inputs:
+              provider: azurerm
+              command: init
+              backendServiceArm: tfstatefile
+              backendAzureRmResourceGroupName: POC
+              backendAzureRmStorageAccountName: tfstatepoc2026
+              backendAzureRmContainerName: tfstate
+              backendAzureRmKey: '${{ parameters.environment }}/terraform.tfstate'
+              workingDirectory: $(workingDirectory)
 
-                - task: TerraformTaskV4@4
-                  displayName: Terraform Apply
-                  inputs:
-                    provider: azurerm
-                    command: apply
-                    commandOptions: 'tfplan'
-                    environmentServiceNameAzureRM: tfstatefile
-                    workingDirectory: $(workingDirectory)
+          - download: current
+            artifact: tfplan-${{ parameters.environment }}
+            displayName: Download Terraform Plan Artifact
+
+          - bash: |
+              cp $(Pipeline.Workspace)/tfplan-${{ parameters.environment }}/tfplan $(workingDirectory)/tfplan
+            displayName: Copy tfplan to Working Directory
+
+          - task: TerraformTaskV4@4
+            displayName: Terraform Apply
+            inputs:
+              provider: azurerm
+              command: apply
+              commandOptions: 'tfplan'
+              environmentServiceNameAzureRM: tfstatefile
+              workingDirectory: $(workingDirectory)
