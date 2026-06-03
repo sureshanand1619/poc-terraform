@@ -39,7 +39,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "this" {
     }
   }
 
-custom_data = base64encode(<<EOF
+  custom_data = base64encode(<<EOF
 #!/bin/bash
 apt update -y
 apt install nginx -y

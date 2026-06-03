@@ -73,9 +73,9 @@ module "vmss" {
   backend_pool_id = module.loadbalancer.backend_pool_id
 
   admin_username = var.admin_username
-admin_password = data.azurerm_key_vault_secret.admin_password.value
-db_username    = data.azurerm_key_vault_secret.db_username.value
-db_password    = data.azurerm_key_vault_secret.db_password.value
+  admin_password = data.azurerm_key_vault_secret.admin_password.value
+  db_username    = data.azurerm_key_vault_secret.db_username.value
+  db_password    = data.azurerm_key_vault_secret.db_password.value
   instance_count = var.instance_count
 }
 

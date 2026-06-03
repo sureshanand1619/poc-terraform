@@ -20,10 +20,10 @@ resource "azurerm_monitor_autoscale_setting" "this" {
         metric_name        = "Percentage CPU"
         metric_resource_id = var.vmss_id
 
-        time_grain        = "PT1M"
-        statistic         = "Average"
-        time_window       = "PT5M"
-        time_aggregation  = "Average"
+        time_grain       = "PT1M"
+        statistic        = "Average"
+        time_window      = "PT5M"
+        time_aggregation = "Average"
 
         operator  = "GreaterThan"
         threshold = var.scale_out_cpu_threshold
@@ -42,10 +42,10 @@ resource "azurerm_monitor_autoscale_setting" "this" {
         metric_name        = "Percentage CPU"
         metric_resource_id = var.vmss_id
 
-        time_grain        = "PT1M"
-        statistic         = "Average"
-        time_window       = "PT10M"
-        time_aggregation  = "Average"
+        time_grain       = "PT1M"
+        statistic        = "Average"
+        time_window      = "PT10M"
+        time_aggregation = "Average"
 
         operator  = "LessThan"
         threshold = var.scale_in_cpu_threshold

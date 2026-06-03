@@ -10,7 +10,7 @@ public_subnet_cidr = "10.2.1.0/24"
 
 private_subnet_cidr = "10.2.2.0/24"
 
-allowed_ssh_ip = "0.0.0.0/32"  # Place holder
+allowed_ssh_ip = "0.0.0.0/32" # Place holder
 
 admin_username = "azureuser"
 

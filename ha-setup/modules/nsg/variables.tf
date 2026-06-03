@@ -11,6 +11,6 @@ variable "environment" {
 }
 
 variable "allowed_ssh_ip" {
-  type = string
+  type    = string
   default = "*"
 }
