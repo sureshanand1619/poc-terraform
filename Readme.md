@@ -219,5 +219,3 @@ terraform plan
 ## About This Project
 
 Built as a hands-on platform to demonstrate production-grade cloud infrastructure skills for a **DevOps / Cloud Engineer** role. Every design decision — modular Terraform, gated pipelines, Key Vault integration, NSG least-privilege rules — reflects patterns used in real enterprise Azure environments.
-
-> If you're a hiring manager or recruiter and want to discuss this project or my experience, feel free to reach out.
