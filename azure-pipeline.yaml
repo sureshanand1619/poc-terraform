@@ -16,6 +16,10 @@ parameters:
       - dev
       - staging
       - prod
+  - name: destroyInfra
+    displayName: Destroy Infrastructure
+    type: boolean
+    default: false
 
 variables:
   terraformVersion: '1.9.8'
@@ -28,6 +32,7 @@ stages:
   # ============================================================
   - stage: Validate
     displayName: Terraform Validation
+    condition: eq('${{ parameters.destroyInfra }}', false)
     jobs:
       - job: ValidateTerraform
         steps:
@@ -82,6 +87,7 @@ stages:
   - stage: Plan
     displayName: Terraform Plan
     dependsOn: Validate
+    condition: eq('${{ parameters.destroyInfra }}', false)
     jobs:
       - job: PlanTerraform
         steps:
@@ -113,6 +119,12 @@ stages:
               environmentServiceNameAzureRM: tfstatefile
               workingDirectory: $(workingDirectory)
 
+          - bash: |
+              echo "##[section]Terraform Plan Summary"
+              terraform show -no-color tfplan | grep -E "^Plan:|will be created|will be destroyed|will be updated|must be replaced" || true
+            workingDirectory: $(workingDirectory)
+            displayName: Show Plan Summary
+
           - publish: $(workingDirectory)/tfplan
             artifact: tfplan-${{ parameters.environment }}
             displayName: Upload Terraform Plan Artifact
@@ -123,6 +135,7 @@ stages:
   - stage: Approval
     displayName: Manual Approval
     dependsOn: Plan
+    condition: eq('${{ parameters.destroyInfra }}', false)
     jobs:
       - job: WaitForApproval
         pool: server
@@ -131,6 +144,7 @@ stages:
             timeoutInMinutes: 1440
             inputs:
               notifyUsers: ''
+              onTimeout: reject
               instructions: |
                 Review Terraform plan output before deployment.
 
@@ -143,7 +157,6 @@ stages:
                   - Monitoring
                   - Alerts
                   - Key Vault references
-              onTimeout: reject
 
   # ============================================================
   # STAGE 4: APPLY
@@ -151,6 +164,7 @@ stages:
   - stage: Apply
     displayName: Terraform Apply
     dependsOn: Approval
+    condition: eq('${{ parameters.destroyInfra }}', false)
     jobs:
       - job: ApplyTerraform
         steps:
@@ -189,3 +203,83 @@ stages:
               commandOptions: 'tfplan'
               environmentServiceNameAzureRM: tfstatefile
               workingDirectory: $(workingDirectory)
+
+          - bash: |
+              echo "##[section]Terraform Outputs"
+              terraform output
+            workingDirectory: $(workingDirectory)
+            displayName: Show Terraform Outputs
+
+  # ============================================================
+  # STAGE 5: DESTROY APPROVAL
+  # ============================================================
+  - stage: DestroyApproval
+    displayName: Destroy Approval
+    dependsOn: []
+    condition: eq('${{ parameters.destroyInfra }}', true)
+    jobs:
+      - job: WaitForDestroyApproval
+        pool: server
+        steps:
+          - task: ManualValidation@0
+            timeoutInMinutes: 1440
+            inputs:
+              notifyUsers: ''
+              onTimeout: reject
+              instructions: |
+                WARNING: You are about to DESTROY all infrastructure in ${{ parameters.environment }}.
+
+                This will permanently delete:
+                  - Resource Group
+                  - Virtual Network and Subnets
+                  - Network Security Groups
+                  - Load Balancer
+                  - VMSS and all instances
+                  - Autoscale settings
+                  - Monitoring and Alerts
+
+                Type your approval only if you are absolutely sure.
+                This action CANNOT be undone.
+
+  # ============================================================
+  # STAGE 6: DESTROY
+  # ============================================================
+  - stage: Destroy
+    displayName: Terraform Destroy
+    dependsOn: DestroyApproval
+    condition: eq('${{ parameters.destroyInfra }}', true)
+    jobs:
+      - job: DestroyTerraform
+        steps:
+          - checkout: self
+
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: $(terraformVersion)
+
+          - task: TerraformTaskV4@4
+            displayName: Terraform Init
+            inputs:
+              provider: azurerm
+              command: init
+              backendServiceArm: tfstatefile
+              backendAzureRmResourceGroupName: POC
+              backendAzureRmStorageAccountName: tfstatepoc2026
+              backendAzureRmContainerName: tfstate
+              backendAzureRmKey: '${{ parameters.environment }}/terraform.tfstate'
+              workingDirectory: $(workingDirectory)
+
+          - task: TerraformTaskV4@4
+            displayName: Terraform Destroy
+            inputs:
+              provider: azurerm
+              command: destroy
+              commandOptions: '-auto-approve'
+              environmentServiceNameAzureRM: tfstatefile
+              workingDirectory: $(workingDirectory)
+
+          - bash: |
+              echo "##[section]Destroy Complete"
+              echo "All infrastructure in ${{ parameters.environment }} has been destroyed."
+            displayName: Destroy Complete
